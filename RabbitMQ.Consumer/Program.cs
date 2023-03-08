@@ -8,16 +8,31 @@ factory.Uri = new("amqps://vzraghwb:N15hjuQFbV18uoVcMsUmYKBWth0dgnwG@cow.rmq2.cl
 using IConnection connection = factory.CreateConnection();
 using IModel channel = connection.CreateModel();
 
-channel.QueueDeclare(queue: "example-queue", exclusive: false, durable: true);
+channel.ExchangeDeclare(
+    exchange: "topic-exchange-example",
+    type: ExchangeType.Topic
+    );
+
+Console.Write("Dinlenecek Topic Belirtiniz: ");
+string topic = Console.ReadLine();
+
+string queueName = channel.QueueDeclare().QueueName;
+
+channel.QueueBind(
+    queue: queueName,
+    exchange: "topic-exchange-example",
+    routingKey: topic
+    );
 
 EventingBasicConsumer consumer = new(channel);
-channel.BasicConsume(queue: "example-queue", autoAck: false, consumer);
-channel.BasicQos(0, 1, false);
-
+channel.BasicConsume(
+    queue: queueName,
+    autoAck: true,
+    consumer
+    );
 consumer.Received += (sender, e) =>
 {
-    Console.WriteLine(Encoding.UTF8.GetString(e.Body.Span));
-    channel.BasicAck(e.DeliveryTag, false);
+    string message = Encoding.UTF8.GetString(e.Body.Span);
+    Console.WriteLine(message);
 };
-
 Console.Read();
