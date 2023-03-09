@@ -8,16 +8,36 @@ factory.Uri = new("amqps://vzraghwb:N15hjuQFbV18uoVcMsUmYKBWth0dgnwG@cow.rmq2.cl
 using IConnection connection = factory.CreateConnection();
 using IModel channel = connection.CreateModel();
 
-channel.QueueDeclare(queue: "example-queue", exclusive: false, durable: true);
+
+string requestQueueName = "example-request-response-queue";
+
+channel.QueueDeclare(
+    queue: requestQueueName,
+    durable: false,
+    exclusive: false,
+    autoDelete: false);
 
 EventingBasicConsumer consumer = new(channel);
-channel.BasicConsume(queue: "example-queue", autoAck: false, consumer);
-channel.BasicQos(0, 1, false);
+channel.BasicConsume(
+    queue: requestQueueName,
+    autoAck: true,
+    consumer: consumer);
 
 consumer.Received += (sender, e) =>
 {
-    Console.WriteLine(Encoding.UTF8.GetString(e.Body.Span));
-    channel.BasicAck(e.DeliveryTag, false);
+    string message = Encoding.UTF8.GetString(e.Body.Span);
+    Console.WriteLine(message);
+    //...
+
+    byte[] responseMessage = Encoding.UTF8.GetBytes($"İşlem tamamlandı. : {message}");
+    IBasicProperties properties = channel.CreateBasicProperties();
+    properties.CorrelationId = e.BasicProperties.CorrelationId;
+
+    channel.BasicPublish(
+        exchange: string.Empty,
+        routingKey: e.BasicProperties.ReplyTo,
+        basicProperties: properties,
+        body: responseMessage);
 };
 
 Console.Read();
